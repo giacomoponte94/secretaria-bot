@@ -62,7 +62,7 @@ async def get_aulas_gp(data: date) -> list:
     try:
         resp = sb_gp.table("agendas").select(
             "inicio, fim, days, students(nome, status)"
-        ).eq("owner_uid", "ddd70b96-9a7c-4de4-add6-d5c9b4da382f").eq("ativo", True).eq("deleted", False).execute()
+        ).eq("owner_uid", "ddd70b96-9a7c-4de4-add6-d5c9b4da382f").eq("ativo", "true").eq("deleted", "false").execute()
 
         logger.info(f"GP Manager - registros raw: {len(resp.data or [])}")
         if resp.data:
