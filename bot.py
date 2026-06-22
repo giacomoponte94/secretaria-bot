@@ -64,6 +64,11 @@ async def get_aulas_gp(data: date) -> list:
             "inicio, fim, days, students(nome)"
         ).eq("owner_uid", "ddd70b96-9a7c-4de4-add6-d5c9b4da382f").eq("ativo", True).eq("deleted", False).execute()
 
+        logger.info(f"GP Manager query - dia buscado: {dia}")
+        logger.info(f"GP Manager query - total registros: {len(resp.data or [])}")
+        for a in (resp.data or [])[:3]:
+            logger.info(f"GP Manager sample - days: {a.get('days')} | type: {type(a.get('days', [None])[0]) if a.get('days') else 'empty'}")
+
         aulas = []
         for a in (resp.data or []):
             days = a.get("days", [])
