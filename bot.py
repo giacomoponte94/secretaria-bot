@@ -316,7 +316,7 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("treino", cmd_treino))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.post_init = lambda a: asyncio.create_task(agendar_jobs(a))
+    app.post_init = agendar_jobs
     logger.info("Secretaria bot v2 iniciando...")
     app.run_polling(drop_pending_updates=True)
 
