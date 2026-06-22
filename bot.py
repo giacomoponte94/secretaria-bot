@@ -61,19 +61,16 @@ async def get_aulas_gp(data: date) -> list:
     dia = dia_semana_db(data)
     try:
         resp = sb_gp.table("agendas").select(
-            "inicio, fim, days, students(nome)"
+            "inicio, fim, days, students(nome, status)"
         ).eq("owner_uid", "ddd70b96-9a7c-4de4-add6-d5c9b4da382f").eq("ativo", True).eq("deleted", False).execute()
-
-        logger.info(f"GP Manager query - dia buscado: {dia}")
-        logger.info(f"GP Manager query - total registros: {len(resp.data or [])}")
-        for a in (resp.data or [])[:3]:
-            logger.info(f"GP Manager sample - days: {a.get('days')} | type: {type(a.get('days', [None])[0]) if a.get('days') else 'empty'}")
 
         aulas = []
         for a in (resp.data or []):
             days = a.get("days", [])
-            if isinstance(days, list) and dia in days:
-                nome = (a.get("students") or {}).get("nome", "Aluno")
+            student = a.get("students") or {}
+            status = student.get("status", "")
+            if isinstance(days, list) and dia in days and status not in ("inativo", "aguardando"):
+                nome = student.get("nome", "Aluno")
                 aulas.append({"hora": a["inicio"], "nome": nome})
         return sorted(aulas, key=lambda x: x["hora"])
     except Exception as e:
