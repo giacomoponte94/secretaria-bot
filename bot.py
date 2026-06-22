@@ -129,24 +129,24 @@ async def montar_resumo_dia(data: date) -> str:
 
     linhas = [f"📅 *{DIAS_PT[dia].capitalize()}, {data.strftime('%d/%m')}*\n"]
 
-    if aulas:
-        linhas.append("*Aulas:*")
-        for a in aulas:
-            linhas.append(f"  {a['hora']} — {a['nome']}")
+    itens = []
 
-    if eventos:
-        linhas.append("\n*Compromissos:*")
-        for e in eventos:
-            hora = e.get("hora_inicio", "") or ""
-            linhas.append(f"  {hora} — {e['descricao']}")
+    for a in aulas:
+        itens.append({"hora": a["hora"], "texto": f"👤 {a['hora']} — {a['nome']}"})
 
-    if rotina:
-        linhas.append("\n*Rotina:*")
-        for r in rotina:
-            emoji = {"treino": "🏋", "projeto": "💻", "descanso": "😴"}.get(r["tipo"], "📌")
-            linhas.append(f"  {emoji} {r['hora_inicio'][:5]} — {r['descricao']}")
+    for r in rotina:
+        emoji = {"treino": "🏋", "projeto": "💻", "descanso": "😴", "outro": "📌"}.get(r["tipo"], "📌")
+        itens.append({"hora": r["hora_inicio"][:5], "texto": f"{emoji} {r['hora_inicio'][:5]} — {r['descricao']}"})
 
-    if not aulas and not eventos and not rotina:
+    for e in eventos:
+        hora = e.get("hora_inicio") or "00:00"
+        itens.append({"hora": hora[:5], "texto": f"🔹 {hora[:5]} — {e['descricao']}"})
+
+    itens.sort(key=lambda x: x["hora"])
+
+    if itens:
+        linhas += [i["texto"] for i in itens]
+    else:
         linhas.append("Dia livre. Descansa.")
 
     return "\n".join(linhas)
