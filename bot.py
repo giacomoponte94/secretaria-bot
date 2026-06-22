@@ -1,4 +1,5 @@
 import os
+import sys
 import asyncio
 import logging
 from datetime import datetime, date, timedelta
@@ -8,22 +9,54 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from supabase import create_client
 import anthropic
 
-logging.basicConfig(level=logging.INFO)
+print("=== Secretaria bot iniciando ===", flush=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    stream=sys.stdout,
+    force=True
+)
 logger = logging.getLogger(__name__)
 
 FORTALEZA_TZ = pytz.timezone("America/Fortaleza")
 
-TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
-SUPABASE_URL = os.environ["SUPABASE_URL_PESSOAL"]
-SUPABASE_KEY = os.environ["SUPABASE_KEY_PESSOAL"]
-SUPABASE_URL_GP = os.environ["SUPABASE_URL_GP"]
-SUPABASE_KEY_GP = os.environ["SUPABASE_KEY_GP"]
-ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
-CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
+try:
+    TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
+    logger.info("TELEGRAM_TOKEN OK")
+except KeyError as e:
+    print(f"ERRO: variavel ausente: {e}", flush=True)
+    sys.exit(1)
 
-sb = create_client(SUPABASE_URL, SUPABASE_KEY)
-sb_gp = create_client(SUPABASE_URL_GP, SUPABASE_KEY_GP)
-claude = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+try:
+    SUPABASE_URL = os.environ["SUPABASE_URL_PESSOAL"]
+    SUPABASE_KEY = os.environ["SUPABASE_KEY_PESSOAL"]
+    SUPABASE_URL_GP = os.environ["SUPABASE_URL_GP"]
+    SUPABASE_KEY_GP = os.environ["SUPABASE_KEY_GP"]
+    ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
+    CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
+    logger.info("Variaveis de ambiente OK")
+except KeyError as e:
+    print(f"ERRO: variavel ausente: {e}", flush=True)
+    sys.exit(1)
+except ValueError as e:
+    print(f"ERRO: TELEGRAM_CHAT_ID invalido: {e}", flush=True)
+    sys.exit(1)
+
+try:
+    sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+    sb_gp = create_client(SUPABASE_URL_GP, SUPABASE_KEY_GP)
+    logger.info("Supabase OK")
+except Exception as e:
+    print(f"ERRO Supabase: {e}", flush=True)
+    sys.exit(1)
+
+try:
+    claude = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+    logger.info("Anthropic OK")
+except Exception as e:
+    print(f"ERRO Anthropic: {e}", flush=True)
+    sys.exit(1)
 
 DIAS_PT = {0: "domingo", 1: "segunda", 2: "terça", 3: "quarta", 4: "quinta", 5: "sexta", 6: "sábado"}
 
@@ -70,13 +103,21 @@ async def get_aulas_gp(data: date) -> list:
 
 
 async def get_rotina_dia(dia_semana: int) -> list:
-    resp = sb.table("secretaria_rotina_semanal").select("*").eq("dia_semana", dia_semana).eq("ativo", True).execute()
-    return resp.data or []
+    try:
+        resp = sb.table("secretaria_rotina_semanal").select("*").eq("dia_semana", dia_semana).eq("ativo", True).execute()
+        return resp.data or []
+    except Exception as e:
+        logger.error(f"Erro rotina: {e}")
+        return []
 
 
 async def get_eventos_dia(data: date) -> list:
-    resp = sb.table("secretaria_eventos").select("*").eq("data", str(data)).eq("cancelado", False).execute()
-    return resp.data or []
+    try:
+        resp = sb.table("secretaria_eventos").select("*").eq("data", str(data)).eq("cancelado", False).execute()
+        return resp.data or []
+    except Exception as e:
+        logger.error(f"Erro eventos: {e}")
+        return []
 
 
 async def registrar_evento(data: date, hora: str, descricao: str, tipo: str = "avulso") -> bool:
@@ -243,15 +284,20 @@ async def agendar_lembretes_aulas(app: Application):
         )
 
     for aula in aulas:
-        h, m = map(int, aula["hora"].split(":"))
-        aula_dt = agora_ftz.replace(hour=h, minute=m, second=0, microsecond=0)
-        lembrete_dt = aula_dt - timedelta(minutes=30)
-        if lembrete_dt > agora_ftz:
-            delay = (lembrete_dt - agora_ftz).total_seconds()
-            job_queue.run_once(lembrete_job, when=delay, data=(str(data), aula["nome"], aula["hora"]))
+        try:
+            partes = aula["hora"].split(":")
+            h, m = int(partes[0]), int(partes[1])
+            aula_dt = agora_ftz.replace(hour=h, minute=m, second=0, microsecond=0)
+            lembrete_dt = aula_dt - timedelta(minutes=30)
+            if lembrete_dt > agora_ftz:
+                delay = (lembrete_dt - agora_ftz).total_seconds()
+                job_queue.run_once(lembrete_job, when=delay, data=(str(data), aula["nome"], aula["hora"]))
+        except Exception as e:
+            logger.error(f"Erro agendando lembrete: {e}")
 
 
 async def agendar_jobs(app: Application):
+    logger.info("Agendando jobs...")
     jq = app.job_queue
     agora_ftz = agora()
 
@@ -267,6 +313,7 @@ async def agendar_jobs(app: Application):
     jq.run_repeating(lambda ctx: asyncio.create_task(cobrar_treino_nao_confirmado(app)), interval=86400, first=segundos_ate(20, 30))
 
     await agendar_lembretes_aulas(app)
+    logger.info("Jobs agendados com sucesso")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -334,13 +381,14 @@ async def cmd_semana(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+    logger.info("Construindo aplicação Telegram...")
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("treino", cmd_treino))
     app.add_handler(CommandHandler("semana", cmd_semana))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.post_init = lambda a: asyncio.create_task(agendar_jobs(a))
-    logger.info("Secretaria bot iniciando...")
+    app.post_init = agendar_jobs
+    logger.info("Iniciando polling...")
     app.run_polling(drop_pending_updates=True)
 
 
