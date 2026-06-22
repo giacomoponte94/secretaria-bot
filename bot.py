@@ -175,7 +175,7 @@ async def enviar_check_tarde(app: Application):
     treino_hoje = any(r["tipo"] == "treino" for r in rotina)
     projeto_hoje = any(r["tipo"] == "projeto" for r in rotina)
 
-    partes = ["🔔" Check-in"]
+    partes = ["🔔 Check-in"]
     if treino_hoje:
         conf = sb.table("secretaria_confirmacoes").select("realizado").eq("data", str(data)).eq("tipo", "treino").execute()
         if not conf.data:
