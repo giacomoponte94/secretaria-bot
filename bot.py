@@ -38,7 +38,8 @@ Quando o usuário disser algo como "Juan marcou extra quinta 15h", extraia: nome
 Quando disser "treinei hoje" ou "não treinei", confirme e registre.
 Quando disser "agenda hoje" ou "como tá a semana", liste os compromissos.
 
-Sempre responda em português. Seja conciso."""
+Sempre responda em português. Seja conciso.
+Você tem memória da conversa. Nunca peça contexto de algo que você mesmo acabou de perguntar. Seja direto, sem elogios ou bajulações."""
 
 
 def agora_ftz() -> datetime:
@@ -152,18 +153,35 @@ async def montar_resumo_dia(data: date) -> str:
     return "\n".join(linhas)
 
 
+async def salvar_mensagem(role: str, content: str):
+    sb.table("secretaria_historico_conversa").insert({
+        "role": role, "content": content
+    }).execute()
+
+
+async def get_historico(limite: int = 10) -> list:
+    resp = sb.table("secretaria_historico_conversa").select("role, content").order("created_at", desc=True).limit(limite).execute()
+    msgs = resp.data or []
+    msgs.reverse()
+    return [{"role": m["role"], "content": m["content"]} for m in msgs]
+
+
 async def processar_com_claude(texto: str, contexto_dia: str) -> str:
+    await salvar_mensagem("user", texto)
+    historico = await get_historico(10)
+
+    messages = historico if historico else [{"role": "user", "content": texto}]
+
     try:
         resp = claude_client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=300,
-            system=SYSTEM_PROMPT,
-            messages=[{
-                "role": "user",
-                "content": f"Contexto da agenda hoje:\n{contexto_dia}\n\nMensagem do Giácomo: {texto}"
-            }]
+            system=SYSTEM_PROMPT + f"\n\nContexto da agenda hoje:\n{contexto_dia}",
+            messages=messages
         )
-        return resp.content[0].text
+        resposta = resp.content[0].text
+        await salvar_mensagem("assistant", resposta)
+        return resposta
     except Exception as e:
         logger.error(f"Erro Claude: {e}")
         return "Não consegui processar agora. Tenta de novo."
