@@ -288,14 +288,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text.lower().strip()
     data = hoje_ftz()
 
-    if any(p in texto for p in ["treinei", "fiz o treino", "fiz treino"]):
-        await registrar_confirmacao(data, "treino", True)
-        await update.message.reply_text("✅ Treino registrado.")
+    if any(p in texto for p in ["não treinei", "nao treinei", "nao fiz", "não fiz", "pulei"]):
+        await registrar_confirmacao(data, "treino", False)
+        await update.message.reply_text("❌ Falta registrada.")
         return
 
-    if any(p in texto for p in ["não treinei", "nao treinei", "pulei", "não fiz", "nao fiz"]):
-        await registrar_confirmacao(data, "treino", False)
-        await update.message.reply_text("Registrado. Próximo tá aí.")
+    if any(p in texto for p in ["treinei", "fiz o treino", "fiz treino"]):
+        await registrar_confirmacao(data, "treino", True)
+        await update.message.reply_text("✅ Treino confirmado.")
         return
 
     if any(p in texto for p in ["agenda hoje", "o que tem hoje", "como tá hoje", "minha agenda"]):
