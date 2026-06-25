@@ -311,6 +311,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     contexto_dia = await montar_resumo_dia(data)
+
+    # Detecta registro de evento avulso
+    import re
+    texto_lower = update.message.text.lower()
+
+    # Padrão: "Psiquiatra amanhã 14:00" ou "João marcou quinta 15h"
+    match_amanha = re.search(r"(.+?)\s+amanhã\s+(\d{1,2})[h:h]?(\d{0,2})?", texto_lower)
+    match_hoje_hora = re.search(r"(.+?)\s+hoje\s+[àas]?\s*(\d{1,2})[h:]?(\d{0,2})?", texto_lower)
+
+    if match_amanha:
+        descricao = match_amanha.group(1).strip().title()
+        hora_h = match_amanha.group(2).zfill(2)
+        hora_m = (match_amanha.group(3) or "00").zfill(2)
+        hora = f"{hora_h}:{hora_m}"
+        data_evento = data + timedelta(days=1)
+        await registrar_evento(data_evento, hora, descricao)
+        await update.message.reply_text(f"✅ {descricao} — {data_evento.strftime('%d/%m')} às {hora}")
+        return
+
+    if match_hoje_hora:
+        descricao = match_hoje_hora.group(1).strip().title()
+        hora_h = match_hoje_hora.group(2).zfill(2)
+        hora_m = (match_hoje_hora.group(3) or "00").zfill(2)
+        hora = f"{hora_h}:{hora_m}"
+        await registrar_evento(data, hora, descricao)
+        await update.message.reply_text(f"✅ {descricao} — {data.strftime('%d/%m')} às {hora}")
+        return
+
     resposta = await processar_com_claude(update.message.text, contexto_dia)
     await update.message.reply_text(resposta)
 
